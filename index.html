@@ -20,8 +20,24 @@
   <main>
     <!-- Start -->
     <section id="view-home" class="view">
+      <div id="saved-banner" class="card banner" hidden>
+        <p><strong id="saved-name"></strong> is opgeslagen. Wat wil je doen?</p>
+        <div class="row">
+          <button id="saved-learn" class="btn primary">Leren</button>
+          <button id="saved-quiz" class="btn secondary">Overhoren</button>
+          <button id="saved-close" class="icon-btn" aria-label="Sluiten">&#10005;</button>
+        </div>
+      </div>
+
       <div id="lists"></div>
       <button id="new-list" class="btn secondary wide">+ Nieuwe woordenlijst</button>
+
+      <div class="card">
+        <h2>Leren</h2>
+        <p class="muted" id="learn-info"></p>
+        <label class="check"><input id="skip-typing" type="checkbox"> Intypen overslaan (alleen kaartjes en meerkeuze)</label>
+        <button id="learn" class="btn primary wide">Start met leren</button>
+      </div>
 
       <div class="card">
         <h2>Overhoren</h2>
@@ -109,6 +125,66 @@
       </div>
       <div class="sticky-actions">
         <button id="save-list" class="btn primary wide">Opslaan</button>
+      </div>
+    </section>
+
+    <!-- Leren -->
+    <section id="view-learn" class="view" hidden>
+      <div class="quiz-top">
+        <span id="l-step"></span>
+        <span id="l-count" class="pill"></span>
+      </div>
+      <div class="bar"><div id="l-bar"></div></div>
+
+      <div id="l-card-step">
+        <button id="l-card" class="flashcard" type="button">
+          <span id="l-front" class="prompt" lang="fr"></span>
+          <span id="l-back" class="back" lang="nl" hidden></span>
+          <span id="l-tap" class="muted">Tik om om te draaien</span>
+        </button>
+        <div class="row wrap">
+          <button id="l-card-speak" class="btn secondary" hidden>&#128264; Uitspreken</button>
+        </div>
+        <div id="l-card-answer" class="row" hidden>
+          <button id="l-again" class="btn secondary grow">Nog niet</button>
+          <button id="l-know" class="btn primary grow">Wist ik</button>
+        </div>
+      </div>
+
+      <div id="l-question">
+        <div class="card prompt-card">
+          <div id="l-prompt" class="prompt"></div>
+          <button id="l-speak" class="icon-btn" aria-label="Uitspreken" hidden>&#128264;</button>
+        </div>
+        <div id="l-choices" class="choices" hidden></div>
+        <form id="l-form" autocomplete="off" hidden>
+          <p id="l-hint" class="muted"></p>
+          <input id="l-input" type="text" lang="fr" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="In het Frans">
+          <div id="l-accents" class="accents"></div>
+          <button id="l-check" class="btn primary wide" type="submit">Controleer</button>
+        </form>
+        <div id="l-feedback" class="feedback" hidden>
+          <p id="l-verdict" class="verdict"></p>
+          <p id="l-correct"></p>
+          <div class="row wrap">
+            <button id="l-next" class="btn primary">Volgende</button>
+            <button id="l-override" class="btn secondary">Ik had het toch goed</button>
+            <button id="l-speak-answer" class="btn secondary" hidden>&#128264; Uitspreken</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="l-done" hidden>
+        <div class="card score-card">
+          <div class="score">Klaar!</div>
+          <p id="l-summary" class="muted"></p>
+        </div>
+        <div id="l-words"></div>
+        <div class="row wrap">
+          <button id="l-more" class="btn primary">Volgende woorden leren</button>
+          <button id="l-to-quiz" class="btn secondary">Overhoren</button>
+          <button id="l-home" class="btn secondary">Naar start</button>
+        </div>
       </div>
     </section>
 

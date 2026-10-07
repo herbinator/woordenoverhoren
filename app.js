@@ -1,9 +1,9 @@
 import {
   checkAnswer, parseText, linesToPairs, linesFromBlocks, enhanceContrast, scanQuality, blueInkShare, buildQuiz, choicesFor,
-  recordResult, isKnown, formatDate, shuffle,
+  recordResult, isKnown, formatDate, shuffle, pickLearnWords, learnPhases, learnRecords, hintFor, LEARN_SIZE,
 } from './logic.js';
 
-const VERSION = '1.9.0';
+const VERSION = '2.0.0';
 const STORE_KEY = 'woordenoverhoren:v1';
 const PER_DIRECTION = 10;
 const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
@@ -19,7 +19,7 @@ const canSpeak = 'speechSynthesis' in window;
 // ---------- Opslag ----------
 
 function defaultState() {
-  return { lists: [], selected: [], settings: { mode: 'type', leftIsFr: true, skipSentences: true } };
+  return { lists: [], selected: [], settings: { mode: 'type', leftIsFr: true, skipSentences: true, skipTyping: false } };
 }
 
 function load() {
@@ -48,8 +48,8 @@ navigator.storage?.persist?.().catch(() => {});
 
 // ---------- Navigatie ----------
 
-const VIEWS = ['home', 'editor', 'quiz', 'result'];
-const TITLES = { home: 'Woorden overhoren', editor: 'Woordenlijst', quiz: 'Overhoring', result: 'Uitslag' };
+const VIEWS = ['home', 'editor', 'learn', 'quiz', 'result'];
+const TITLES = { home: 'Woorden overhoren', editor: 'Woordenlijst', learn: 'Leren', quiz: 'Overhoring', result: 'Uitslag' };
 let current = 'home';
 
 function show(view, push = true) {
@@ -72,8 +72,12 @@ window.addEventListener('popstate', (e) => {
     history.pushState({ view: 'quiz' }, '');
     return;
   }
+  if (current === 'learn' && learn && !learn.finished && !confirm('Stoppen met leren?')) {
+    history.pushState({ view: 'learn' }, '');
+    return;
+  }
   editorDirty = false;
-  show(e.state?.view === 'editor' || e.state?.view === 'quiz' ? 'home' : e.state?.view || 'home', false);
+  show(['editor', 'learn', 'quiz'].includes(e.state?.view) ? 'home' : e.state?.view || 'home', false);
 });
 $('back').addEventListener('click', () => history.back());
 
@@ -95,12 +99,16 @@ function listProgress(list) {
   return { count: words.length, pct: total ? Math.round((known / total) * 100) : 0 };
 }
 
-function selectedPool() {
+function poolOf(ids) {
   return state.lists
-    .filter((l) => state.selected.includes(l.id))
+    .filter((l) => ids.includes(l.id))
     .flatMap((l) => l.words)
     .filter((w) => w.fr && w.nl);
 }
+const selectedPool = () => poolOf(state.selected);
+
+// Net opgeslagen lijst: bovenaan de start meteen leren of overhoren aanbieden.
+let justSaved = null;
 
 function renderHome() {
   state.selected = state.selected.filter((id) => state.lists.some((l) => l.id === id));
@@ -123,8 +131,17 @@ function renderHome() {
     }).join('');
   }
 
+  const saved = state.lists.find((l) => l.id === justSaved);
+  $('saved-banner').hidden = !saved || !poolOf([saved.id]).length;
+  if (saved) $('saved-name').textContent = saved.name;
+
   const pool = selectedPool();
   const n = Math.min(pool.length, PER_DIRECTION) * 2;
+  $('learn').disabled = !pool.length;
+  $('skip-typing').checked = state.settings.skipTyping;
+  $('learn-info').textContent = pool.length
+    ? `Per ronde ${Math.min(pool.length, LEARN_SIZE)} woorden: eerst kaartjes bekijken, dan meerkeuze${state.settings.skipTyping ? '' : ' en daarna zelf het Frans intypen'}. Woorden die je nog niet kent komen het eerst aan bod.`
+    : 'Vink hierboven aan welke lijsten je wilt leren.';
   $('start').disabled = n === 0;
   $('start').textContent = n ? `Start overhoring (${n} vragen)` : 'Start overhoring';
   $('start-info').textContent = !state.lists.length
@@ -152,7 +169,27 @@ document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListene
   state.settings.mode = r.value;
   save();
 }));
-$('start').addEventListener('click', () => startQuiz(buildQuiz(selectedPool(), PER_DIRECTION)));
+$('start').addEventListener('click', () => startQuiz(buildQuiz(selectedPool(), PER_DIRECTION), selectedPool()));
+$('learn').addEventListener('click', () => startLearn(selectedPool()));
+$('skip-typing').addEventListener('change', (e) => {
+  state.settings.skipTyping = e.target.checked;
+  save();
+  renderHome();
+});
+$('saved-learn').addEventListener('click', () => {
+  const pool = poolOf([justSaved]);
+  justSaved = null;
+  startLearn(pool);
+});
+$('saved-quiz').addEventListener('click', () => {
+  const pool = poolOf([justSaved]);
+  justSaved = null;
+  startQuiz(buildQuiz(pool, PER_DIRECTION), pool);
+});
+$('saved-close').addEventListener('click', () => {
+  justSaved = null;
+  renderHome();
+});
 
 // ---------- Exporteren / importeren ----------
 
@@ -198,6 +235,7 @@ function openEditor(list) {
     ? structuredClone(list)
     : { id: uid(), name: '', created: formatDate(), words: [] };
   draft.isNew = !list;
+  justSaved = null;
   snips.clear();
   editorDirty = false;
   $('list-name').value = draft.name;
@@ -309,9 +347,11 @@ $('save-list').addEventListener('click', () => {
   const i = state.lists.findIndex((l) => l.id === list.id);
   if (i >= 0) state.lists[i] = list; else state.lists.push(list);
   if (isNew) state.selected.push(list.id);
+  justSaved = list.id;
   save();
   editorDirty = false;
-  toast('Opgeslagen.');
+  // Met complete woorden verschijnt bovenaan de start al een melding met knoppen.
+  if (!poolOf([list.id]).length) toast('Opgeslagen.');
   history.back();
 });
 
@@ -602,10 +642,11 @@ if (canSpeak) {
   speechSynthesis.addEventListener?.('voiceschanged', pickFrenchVoice);
 }
 
-function speak(text) {
+function speak(text, quiet = false) {
   if (!canSpeak || !text) return;
   if (!frenchVoice) pickFrenchVoice();
   if (!frenchVoice) {
+    if (quiet) return;
     toast('Geen Franse stem gevonden. Windows: Instellingen > Tijd en taal > Spraak > Stemmen toevoegen > Frans. Android: Instellingen > Tekst-naar-spraak.');
     return;
   }
@@ -618,21 +659,24 @@ function speak(text) {
   setTimeout(() => speechSynthesis.speak(u), 60);
 }
 
-$('accents').innerHTML = ACCENTS.map((a) => `<button type="button" data-ch="${esc(a)}">${esc(a)}</button>`).join('');
-$('accents').addEventListener('pointerdown', (e) => {
-  const ch = e.target.dataset.ch;
-  if (!ch) return;
-  e.preventDefault(); // focus in het invoerveld houden, zodat het toetsenbord open blijft
-  const input = $('q-input');
-  const { selectionStart: s, selectionEnd: t, value } = input;
-  input.value = value.slice(0, s) + ch + value.slice(t);
-  input.setSelectionRange(s + ch.length, s + ch.length);
-  input.focus();
-});
+function accentBar(bar, input) {
+  bar.innerHTML = ACCENTS.map((a) => `<button type="button" data-ch="${esc(a)}">${esc(a)}</button>`).join('');
+  bar.addEventListener('pointerdown', (e) => {
+    const ch = e.target.dataset.ch;
+    if (!ch) return;
+    e.preventDefault(); // focus in het invoerveld houden, zodat het toetsenbord open blijft
+    const { selectionStart: s, selectionEnd: t, value } = input;
+    input.value = value.slice(0, s) + ch + value.slice(t);
+    input.setSelectionRange(s + ch.length, s + ch.length);
+    input.focus();
+  });
+}
+accentBar($('accents'), $('q-input'));
+accentBar($('l-accents'), $('l-input'));
 
-function startQuiz(questions) {
+function startQuiz(questions, pool) {
   if (!questions.length) return;
-  quiz = { questions, index: 0, results: [], pool: selectedPool() };
+  quiz = { questions, index: 0, results: [], pool };
   if (current === 'quiz') renderQuestion(); else { show('quiz'); renderQuestion(); }
 }
 
@@ -759,16 +803,200 @@ $('r-retry').addEventListener('click', () => {
   current = 'quiz';
   for (const v of VIEWS) $(`view-${v}`).hidden = v !== 'quiz';
   $('title').textContent = TITLES.quiz;
-  startQuiz(again);
+  startQuiz(again, quiz.pool);
 });
 $('r-again').addEventListener('click', () => {
   history.replaceState({ view: 'quiz' }, '');
   current = 'quiz';
   for (const v of VIEWS) $(`view-${v}`).hidden = v !== 'quiz';
   $('title').textContent = TITLES.quiz;
-  startQuiz(buildQuiz(selectedPool(), PER_DIRECTION));
+  startQuiz(buildQuiz(quiz.pool, PER_DIRECTION), quiz.pool);
 });
 $('r-home').addEventListener('click', () => history.back());
+
+// ---------- Leren ----------
+
+let learn = null;
+const STEP_NAMES = { card: 'Kaartjes bekijken', choice: 'Meerkeuze', type: 'Zelf intypen' };
+// Hoe vaak een woord per stap aan bod komt als het niet lukt.
+const MAX_TRIES = { card: 3, choice: 2, type: 3 };
+
+const learnStep = () => learn.phases[learn.phase].name;
+
+function startLearn(pool) {
+  const words = pickLearnWords(pool, LEARN_SIZE);
+  if (!words.length) return;
+  const typing = !state.settings.skipTyping;
+  const phases = learnPhases(words, typing);
+  learn = {
+    pool, words, typing, phases, phase: 0, queue: [], done: 0, missed: new Set(), finished: false,
+    total: phases.reduce((n, p) => n + p.items.length, 0),
+  };
+  learn.queue = phases[0].items.map((q) => ({ q, tries: 0 }));
+  if (current !== 'learn') show('learn');
+  nextLearnItem();
+}
+
+function nextLearnItem() {
+  while (!learn.queue.length) {
+    learn.phase++;
+    if (learn.phase >= learn.phases.length) {
+      showLearnDone();
+      return;
+    }
+    learn.queue = learn.phases[learn.phase].items.map((q) => ({ q, tries: 0 }));
+  }
+  learn.item = learn.queue.shift();
+  learn.answered = false;
+  renderLearnItem();
+}
+
+function renderLearnItem() {
+  const step = learnStep();
+  const { q } = learn.item;
+  $('l-step').textContent = `Stap ${learn.phase + 1} van ${learn.phases.length}: ${STEP_NAMES[step]}`;
+  $('l-count').hidden = false;
+  $('l-count').textContent = `nog ${learn.queue.length + 1}`;
+  $('l-bar').style.width = `${(learn.done / learn.total) * 100}%`;
+  $('l-done').hidden = true;
+  $('l-card-step').hidden = step !== 'card';
+  $('l-question').hidden = step === 'card';
+  window.scrollTo(0, 0);
+
+  if (step === 'card') {
+    $('l-front').textContent = q.word.fr;
+    $('l-back').textContent = q.word.nl;
+    $('l-back').hidden = true;
+    $('l-tap').hidden = false;
+    $('l-card-answer').hidden = true;
+    $('l-card-speak').hidden = !canSpeak;
+    $('l-card').focus();
+    speak(q.word.fr, true);
+    return;
+  }
+
+  $('l-prompt').textContent = q.prompt;
+  $('l-prompt').lang = q.dir === 'fn' ? 'fr' : 'nl';
+  $('l-speak').hidden = !(canSpeak && q.dir === 'fn');
+  $('l-feedback').hidden = true;
+  const typing = step === 'type';
+  $('l-form').hidden = !typing;
+  $('l-choices').hidden = typing;
+  if (typing) {
+    const input = $('l-input');
+    input.value = '';
+    input.disabled = false;
+    const hint = hintFor(q.answer);
+    $('l-hint').textContent = hint ? `Begint met: ${hint}` : '';
+    $('l-accents').hidden = false;
+    $('l-check').hidden = false;
+    input.focus();
+  } else {
+    const pool = learn.pool.length >= 4 ? learn.pool : learn.words;
+    $('l-choices').innerHTML = choicesFor(q, pool).map((c) => `<button class="btn secondary" data-choice="${esc(c)}">${esc(c)}</button>`).join('');
+  }
+}
+
+// Verwerkt het antwoord op het huidige woord en gaat door. Lukt het niet,
+// dan komt het woord aan het eind van deze stap nog een keer terug.
+function learnResult(ok) {
+  const it = learn.item;
+  const step = learnStep();
+  if (it.tries === 0 && learnRecords(step, it.q.dir, learn.typing)) {
+    recordResult(it.q.word, it.q.dir, ok);
+    save();
+  }
+  if (!ok) learn.missed.add(it.q.word);
+  if (!ok && it.tries < MAX_TRIES[step] - 1) {
+    it.tries++;
+    learn.queue.push(it);
+  } else {
+    learn.done++;
+  }
+  nextLearnItem();
+}
+
+function learnAnswer(given) {
+  if (learn.answered) return;
+  learn.answered = true;
+  const { q } = learn.item;
+  const verdict = learnStep() === 'type'
+    ? checkAnswer(given, q.answer, q.answerLang)
+    : (given === q.answer ? 'correct' : 'wrong');
+  learn.given = given;
+  learn.ok = verdict !== 'wrong';
+  showLearnFeedback(verdict);
+}
+
+function showLearnFeedback(verdict) {
+  const { q, tries } = learn.item;
+  const step = learnStep();
+  const fb = $('l-feedback');
+  fb.className = `feedback ${verdict}`;
+  $('l-verdict').textContent = { correct: 'Goed!', accent: 'Goed, maar let op de accenten', wrong: 'Helaas, fout' }[verdict];
+  const again = verdict === 'wrong' && tries < MAX_TRIES[step] - 1 ? ' Dit woord komt straks nog een keer terug.' : '';
+  $('l-correct').innerHTML = verdict === 'correct' ? '' : `Het juiste antwoord is: <strong lang="${q.answerLang}">${esc(q.answer)}</strong>.${again}`;
+  $('l-override').hidden = verdict !== 'wrong' || step !== 'type';
+  $('l-speak-answer').hidden = !canSpeak;
+  fb.hidden = false;
+  $('l-input').disabled = true;
+  $('l-check').hidden = true;
+  $('l-accents').hidden = true;
+  document.querySelectorAll('#l-choices button').forEach((b) => {
+    b.disabled = true;
+    if (b.dataset.choice === q.answer) b.classList.add('right');
+    else if (b.dataset.choice === learn.given) b.classList.add('wrong');
+  });
+  $('l-next').focus();
+}
+
+function showLearnDone() {
+  learn.finished = true;
+  $('l-step').textContent = 'Ronde klaar';
+  $('l-count').hidden = true;
+  $('l-bar').style.width = '100%';
+  $('l-card-step').hidden = true;
+  $('l-question').hidden = true;
+  $('l-done').hidden = false;
+  const hard = learn.words.filter((w) => learn.missed.has(w)).length;
+  $('l-summary').textContent = hard
+    ? `Je hebt ${learn.words.length} woorden geoefend. ${hard === 1 ? '1 woord ging' : `${hard} woorden gingen`} nog niet meteen goed (oranje).`
+    : `Je hebt ${learn.words.length} woorden geoefend en alles ging meteen goed.`;
+  $('l-words').innerHTML = learn.words.map((w) => `<div class="word-result${learn.missed.has(w) ? ' hard' : ''}">
+      <strong lang="fr">${esc(w.fr)}</strong> <span class="muted">= ${esc(w.nl)}</span>
+    </div>`).join('');
+  window.scrollTo(0, 0);
+}
+
+$('l-card').addEventListener('click', () => {
+  $('l-back').hidden = false;
+  $('l-tap').hidden = true;
+  $('l-card-answer').hidden = false;
+});
+$('l-card-speak').addEventListener('click', () => speak(learn.item.q.word.fr));
+$('l-know').addEventListener('click', () => learnResult(true));
+$('l-again').addEventListener('click', () => learnResult(false));
+$('l-choices').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-choice]');
+  if (b) learnAnswer(b.dataset.choice);
+});
+$('l-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!learn.answered) learnAnswer($('l-input').value);
+});
+$('l-override').addEventListener('click', () => {
+  learn.ok = true;
+  showLearnFeedback('correct');
+});
+$('l-speak').addEventListener('click', () => speak(learn.item.q.prompt));
+$('l-speak-answer').addEventListener('click', () => {
+  const { q } = learn.item;
+  speak(q.dir === 'fn' ? q.prompt : q.answer);
+});
+$('l-next').addEventListener('click', () => learnResult(learn.ok));
+$('l-more').addEventListener('click', () => startLearn(learn.pool));
+$('l-to-quiz').addEventListener('click', () => startQuiz(buildQuiz(learn.pool, PER_DIRECTION), learn.pool));
+$('l-home').addEventListener('click', () => history.back());
 
 // ---------- Start de app ----------
 

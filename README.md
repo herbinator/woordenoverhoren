@@ -8,6 +8,8 @@ Hij werkt op Android en op een laptop, zonder appstore, en daarna ook offline.
 - Woordenlijsten maken per hoofdstuk of blok:
   - **Foto scannen**: de app leest de woorden van de foto (tekstherkenning in de browser, met Tesseract.js).
   - **Tekst plakken**: bijvoorbeeld het antwoord van een AI-chat. Je kunt ook zelf typen, één regel per woord: `l'école = de school`.
+- **Leren** in rondes van 5 woorden: eerst kaartjes bekijken (met uitspraak), dan meerkeuze in beide richtingen en daarna zelf het Frans intypen, met de eerste letter als hulp. Wat niet lukt, komt in dezelfde ronde nog een keer terug. Het intypen kun je met een vinkje overslaan.
+- Na het opslaan van een lijst kies je meteen: leren of overhoren.
 - Een overhoring van 20 vragen: 10 Frans → Nederlands en 10 Nederlands → Frans.
 - Antwoorden intypen of kiezen (meerkeuze). Accenten vergeten telt als goed, met een waarschuwing. Bij Nederlandse antwoorden is het lidwoord niet verplicht.
 - De app onthoudt welke woorden je al kent: 3 keer achter elkaar goed. Woorden die je nog niet kent, krijg je vaker.

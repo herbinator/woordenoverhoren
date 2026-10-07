@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   checkAnswer, parseText, linesToPairs, enhanceContrast, isSentence, cleanCell, scanQuality, blueInkShare, languageScore, splitByInk, buildQuiz, choicesFor, recordResult, isKnown, formatDate,
+  pickLearnWords, learnPhases, learnRecords, hintFor,
 } from '../logic.js';
 
 test('checkAnswer: exact, hoofdletters en leestekens', () => {
@@ -275,4 +276,41 @@ test('recordResult en isKnown', () => {
 
 test('formatDate: DD-MM-YYYY', () => {
   assert.equal(formatDate(new Date(2026, 9, 5)), '05-10-2026');
+});
+
+test('pickLearnWords: onbekende woorden eerst, bekende als laatste', () => {
+  const known = { fr: 'oui', nl: 'ja', stats: { fn: { streak: 3 }, nf: { streak: 3 } } };
+  const half = { fr: 'non', nl: 'nee', stats: { fn: { streak: 3 } } };
+  const fresh = { fr: 'chat', nl: 'kat' };
+  const empty = { fr: 'chien', nl: '' };
+  assert.deepEqual(pickLearnWords([known, half, fresh, empty], 2), [fresh, half]);
+  assert.equal(pickLearnWords([known, half, fresh], 5).length, 3);
+});
+
+test('learnPhases: kaartjes, meerkeuze in beide richtingen, intypen naar het Frans', () => {
+  const words = [{ fr: 'a', nl: 'x' }, { fr: 'b', nl: 'y' }];
+  const phases = learnPhases(words, true);
+  assert.deepEqual(phases.map((p) => p.name), ['card', 'choice', 'type']);
+  assert.equal(phases[0].items.length, 2);
+  assert.equal(phases[1].items.filter((q) => q.dir === 'fn').length, 2);
+  assert.equal(phases[1].items.filter((q) => q.dir === 'nf').length, 2);
+  assert.ok(phases[2].items.every((q) => q.dir === 'nf' && q.answerLang === 'fr'));
+  assert.deepEqual(learnPhases(words, false).map((p) => p.name), ['card', 'choice']);
+});
+
+test('learnRecords: welke stap telt mee voor "ken ik al"', () => {
+  assert.equal(learnRecords('card', 'fn', true), false);
+  assert.equal(learnRecords('choice', 'fn', true), true);
+  assert.equal(learnRecords('choice', 'nf', true), false);
+  assert.equal(learnRecords('choice', 'nf', false), true);
+  assert.equal(learnRecords('type', 'nf', true), true);
+});
+
+test('hintFor: lidwoord plus eerste letter', () => {
+  assert.equal(hintFor('la maison'), 'la m…');
+  assert.equal(hintFor("l'école"), "l'é…");
+  assert.equal(hintFor('manger'), 'm…');
+  assert.equal(hintFor('(se) laver'), '(se) l…');
+  assert.equal(hintFor('très / bien'), 't…');
+  assert.equal(hintFor('à'), '');
 });

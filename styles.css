@@ -253,6 +253,43 @@ input[type="text"]:focus, textarea:focus { outline: 2px solid var(--primary); ou
 .feedback.accent .verdict { color: var(--warn); }
 .feedback.wrong .verdict { color: var(--bad); }
 
+/* Leren */
+#l-card-step, #l-question, #l-done { display: flex; flex-direction: column; gap: 14px; }
+.flashcard {
+  appearance: none;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 200px;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.flashcard .back {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--primary);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  align-self: stretch;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.btn.grow { flex: 1; }
+#l-hint { font-weight: 600; }
+#l-words { display: flex; flex-direction: column; gap: 8px; }
+.word-result { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--good); border-radius: 8px; padding: 10px 12px; }
+.word-result.hard { border-left-color: var(--warn); }
+.banner { border-color: var(--primary); }
+.banner p { margin: 0; }
+
 /* Uitslag */
 .score-card { align-items: center; text-align: center; }
 .score { font-size: 3rem; font-weight: 800; }

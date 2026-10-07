@@ -733,14 +733,59 @@ export function pickWords(pool, dir, count, rnd = Math.random) {
     .map((x) => x.w);
 }
 
+export function question(w, dir) {
+  return dir === 'fn'
+    ? { word: w, dir, prompt: w.fr, answer: w.nl, answerLang: 'nl' }
+    : { word: w, dir, prompt: w.nl, answer: w.fr, answerLang: 'fr' };
+}
+
 export function buildQuiz(pool, perDirection = 10, rnd = Math.random) {
-  const fn = shuffle(pickWords(pool, 'fn', perDirection, rnd), rnd).map((w) => ({
-    word: w, dir: 'fn', prompt: w.fr, answer: w.nl, answerLang: 'nl',
-  }));
-  const nf = shuffle(pickWords(pool, 'nf', perDirection, rnd), rnd).map((w) => ({
-    word: w, dir: 'nf', prompt: w.nl, answer: w.fr, answerLang: 'fr',
-  }));
+  const fn = shuffle(pickWords(pool, 'fn', perDirection, rnd), rnd).map((w) => question(w, 'fn'));
+  const nf = shuffle(pickWords(pool, 'nf', perDirection, rnd), rnd).map((w) => question(w, 'nf'));
   return [...fn, ...nf];
+}
+
+// ---------- Leren ----------
+
+export const LEARN_SIZE = 5;
+
+// De woorden die in beide richtingen het minst bekend zijn.
+export function pickLearnWords(pool, count = LEARN_SIZE, rnd = Math.random) {
+  const streak = (w, dir) => w.stats?.[dir]?.streak ?? 0;
+  return shuffle(pool.filter((w) => w.fr && w.nl), rnd)
+    .map((w) => ({
+      w,
+      key: (isKnown(w, 'fn') && isKnown(w, 'nf') ? 1000 : 0) + streak(w, 'fn') + streak(w, 'nf') + rnd(),
+    }))
+    .sort((a, b) => a.key - b.key)
+    .slice(0, count)
+    .map((x) => x.w);
+}
+
+// Een leerronde: kaartjes bekijken, meerkeuze in beide richtingen en
+// (behalve als dat is uitgezet) het Frans zelf intypen.
+export function learnPhases(words, typing = true, rnd = Math.random) {
+  const phases = [
+    { name: 'card', items: shuffle(words, rnd).map((w) => question(w, 'fn')) },
+    { name: 'choice', items: shuffle([...words.map((w) => question(w, 'fn')), ...words.map((w) => question(w, 'nf'))], rnd) },
+  ];
+  if (typing) phases.push({ name: 'type', items: shuffle(words, rnd).map((w) => question(w, 'nf')) });
+  return phases;
+}
+
+// Welke richting telt mee voor "ken ik al" in deze stap? Meerkeuze telt alleen
+// voor Nederlands → Frans als het intypen is overgeslagen.
+export function learnRecords(phase, dir, typing) {
+  if (phase === 'choice') return dir === 'fn' || !typing;
+  return phase === 'type';
+}
+
+// Hulp bij intypen: lidwoord plus eerste letter, bijv. "la m…" of "l'é…".
+export function hintFor(answer) {
+  const main = String(answer ?? '').split(/[\/;,]/)[0].trim();
+  const m = main.match(/^((?:\([^)]*\)\s*)?(?:(?:le|la|les|un|une|des|du|de la)\s+|[ld]['’]\s*)?)(\S)(.*)$/i);
+  if (!m || !m[3].trim()) return '';
+  return `${m[1]}${m[2]}…`;
 }
 
 // Meerkeuze: het goede antwoord plus maximaal drie andere uit dezelfde pool.
