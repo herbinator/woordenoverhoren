@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Woorden overhoren</title>
+  <meta name="description" content="Franse woordjes overhoren vanaf foto's uit je lesboek">
+  <meta name="theme-color" content="#2f5bd3">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="back" class="icon-btn" aria-label="Terug" hidden>&#8592;</button>
+    <h1 id="title">Woorden overhoren</h1>
+  </header>
+
+  <main>
+    <!-- Start -->
+    <section id="view-home" class="view">
+      <div id="lists"></div>
+      <button id="new-list" class="btn secondary wide">+ Nieuwe woordenlijst</button>
+
+      <div class="card">
+        <h2>Overhoren</h2>
+        <p class="muted" id="start-info"></p>
+        <fieldset class="segmented">
+          <legend>Antwoorden</legend>
+          <label><input type="radio" name="mode" value="type"> Intypen</label>
+          <label><input type="radio" name="mode" value="choice"> Meerkeuze</label>
+        </fieldset>
+        <button id="start" class="btn primary wide">Start overhoring</button>
+      </div>
+
+      <details class="card">
+        <summary>Lijsten overzetten naar een ander apparaat</summary>
+        <p class="muted">Exporteer hier een bestand en open dat op je andere apparaat met "Importeren".</p>
+        <div class="row">
+          <button id="export" class="btn secondary">Exporteren</button>
+          <label class="btn secondary">Importeren<input id="import" type="file" accept=".json,application/json" hidden></label>
+        </div>
+      </details>
+      <p class="footer muted" id="version"></p>
+    </section>
+
+    <!-- Lijst bewerken -->
+    <section id="view-editor" class="view" hidden>
+      <label class="field">Naam van de lijst
+        <input id="list-name" type="text" placeholder="Bijv. Hoofdstuk 3" autocomplete="off">
+      </label>
+
+      <div class="row wrap">
+        <button id="open-scan" class="btn primary">Foto scannen</button>
+        <button id="open-paste" class="btn secondary">Tekst plakken</button>
+        <button id="add-row" class="btn secondary">+ Woord</button>
+      </div>
+
+      <div id="paste-panel" class="card" hidden>
+        <h2>Tekst plakken of typen</h2>
+        <p class="muted">Eén woord per regel, bijv. <code>l'école = de school</code>. Ook tab, ; of " - " werken als scheiding.</p>
+        <p class="muted">Via een AI-chat (zoals Claude): kopieer de opdracht, plak die met je foto in de chat en plak het antwoord hieronder.</p>
+        <button id="copy-prompt" class="btn secondary">Kopieer opdracht voor AI-chat</button>
+        <textarea id="paste-text" rows="8" spellcheck="false"></textarea>
+        <div class="row">
+          <button id="paste-add" class="btn primary">Toevoegen</button>
+          <button id="paste-cancel" class="btn secondary">Annuleren</button>
+        </div>
+      </div>
+
+      <div id="scan-panel" class="card" hidden>
+        <h2>Foto scannen</h2>
+        <div class="row wrap">
+          <label class="btn primary">Foto maken<input id="scan-camera" type="file" accept="image/*" capture="environment" hidden></label>
+          <label class="btn secondary">Foto kiezen<input id="scan-file" type="file" accept="image/*" hidden></label>
+        </div>
+        <div id="scan-work" hidden>
+          <p class="muted"><strong>Beste resultaat:</strong> sleep met je vinger of muis een kader om één blok woorden (bijv. blok A) en scan de blokken los. Fotografeer het boek plat, recht van boven en met goed licht.</p>
+          <div id="crop-wrap" class="crop-wrap">
+            <canvas id="scan-canvas"></canvas>
+            <div id="crop-box" class="crop-box" hidden></div>
+          </div>
+          <div class="row wrap">
+            <button id="rotate" class="btn secondary">Draaien &#8635;</button>
+            <button id="clear-crop" class="btn secondary">Kader weg</button>
+          </div>
+          <fieldset class="segmented">
+            <legend>Linker kolom in het boek is</legend>
+            <label><input type="radio" name="left" value="fr"> Frans</label>
+            <label><input type="radio" name="left" value="nl"> Nederlands</label>
+          </fieldset>
+          <label class="check"><input id="skip-sentences" type="checkbox"> Zinnen overslaan (alleen losse woorden)</label>
+          <button id="recognise" class="btn primary wide">Herken woorden</button>
+          <div id="scan-progress" class="progress" hidden><div></div><span></span></div>
+        </div>
+        <button id="scan-close" class="btn secondary">Klaar met deze foto</button>
+      </div>
+
+      <div class="table-head">
+        <span>Frans</span><span>Nederlands</span><span></span>
+      </div>
+      <div id="rows"></div>
+      <p id="row-count" class="muted"></p>
+
+      <div class="row wrap">
+        <button id="swap-cols" class="btn secondary" title="Frans en Nederlands omwisselen">Kolommen wisselen</button>
+        <button id="delete-list" class="btn danger">Lijst verwijderen</button>
+      </div>
+      <div class="sticky-actions">
+        <button id="save-list" class="btn primary wide">Opslaan</button>
+      </div>
+    </section>
+
+    <!-- Overhoring -->
+    <section id="view-quiz" class="view" hidden>
+      <div class="quiz-top">
+        <span id="q-count"></span>
+        <span id="q-dir" class="pill"></span>
+      </div>
+      <div class="bar"><div id="q-bar"></div></div>
+
+      <div class="card prompt-card">
+        <div id="q-prompt" class="prompt"></div>
+        <button id="q-speak" class="icon-btn" aria-label="Uitspreken" hidden>&#128264;</button>
+      </div>
+
+      <form id="q-form" autocomplete="off">
+        <input id="q-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Jouw antwoord">
+        <div id="accents" class="accents" hidden></div>
+        <button id="q-check" class="btn primary wide" type="submit">Controleer</button>
+      </form>
+      <div id="q-choices" class="choices" hidden></div>
+
+      <div id="q-feedback" class="feedback" hidden>
+        <p id="q-verdict" class="verdict"></p>
+        <p id="q-correct"></p>
+        <div class="row wrap">
+          <button id="q-next" class="btn primary">Volgende</button>
+          <button id="q-override" class="btn secondary">Ik had het toch goed</button>
+          <button id="q-speak-answer" class="btn secondary" hidden>&#128264; Uitspreken</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Uitslag -->
+    <section id="view-result" class="view" hidden>
+      <div class="card score-card">
+        <div id="r-score" class="score"></div>
+        <p id="r-detail" class="muted"></p>
+      </div>
+      <div id="r-mistakes"></div>
+      <div class="row wrap">
+        <button id="r-retry" class="btn primary">Fouten opnieuw oefenen</button>
+        <button id="r-again" class="btn secondary">Nieuwe overhoring</button>
+        <button id="r-home" class="btn secondary">Naar start</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Foto's uit het lesboek niet online zetten (auteursrecht uitgever)
+*.jpg
+*.jpeg
+*.heic
+*.webp
+node_modules/
