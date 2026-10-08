@@ -1,5 +1,5 @@
 // Verhoog dit nummer bij elke nieuwe versie, dan halen apparaten de update op.
-const CACHE = 'woordenoverhoren-v4';
+const CACHE = 'woordenoverhoren-v5';
 const SHELL = [
   './',
   './index.html',

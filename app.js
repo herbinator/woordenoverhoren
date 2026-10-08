@@ -1,9 +1,9 @@
 import {
   checkAnswer, parseText, linesToPairs, linesFromBlocks, enhanceContrast, scanQuality, blueInkShare, buildQuiz, choicesFor,
-  recordResult, isKnown, formatDate, shuffle, pickLearnWords, learnPhases, learnRecords, hintFor, LEARN_SIZE,
+  recordResult, formatDate, shuffle, listProgress, pickLearnWords, learnPhases, learnRecords, hintFor, LEARN_SIZE,
 } from './logic.js';
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const STORE_KEY = 'woordenoverhoren:v1';
 const PER_DIRECTION = 10;
 const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
@@ -92,13 +92,6 @@ function toast(msg) {
 
 // ---------- Start ----------
 
-function listProgress(list) {
-  const words = list.words.filter((w) => w.fr && w.nl);
-  const total = words.length * 2;
-  const known = words.reduce((n, w) => n + (isKnown(w, 'fn') ? 1 : 0) + (isKnown(w, 'nf') ? 1 : 0), 0);
-  return { count: words.length, pct: total ? Math.round((known / total) * 100) : 0 };
-}
-
 function poolOf(ids) {
   return state.lists
     .filter((l) => ids.includes(l.id))
@@ -118,12 +111,12 @@ function renderHome() {
       <p class="muted">Maak een nieuwe lijst en scan een foto uit je boek.</p></div>`;
   } else {
     el.innerHTML = state.lists.map((l) => {
-      const p = listProgress(l);
+      const p = listProgress(l.words);
       return `<div class="list-item">
         <input type="checkbox" data-select="${esc(l.id)}" aria-label="Overhoren: ${esc(l.name)}" ${state.selected.includes(l.id) ? 'checked' : ''}>
         <div class="info">
           <div class="name">${esc(l.name)}</div>
-          <div class="muted">${p.count} woorden, ${p.pct}% geleerd</div>
+          <div class="muted">${p.count} woorden, ${p.known} helemaal geleerd. Voortgang ${p.pct}%</div>
           <div class="meter"><div style="width:${p.pct}%"></div></div>
         </div>
         <button class="btn secondary" data-edit="${esc(l.id)}">Bewerk</button>

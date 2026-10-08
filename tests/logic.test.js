@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   checkAnswer, parseText, linesToPairs, enhanceContrast, isSentence, cleanCell, scanQuality, blueInkShare, languageScore, splitByInk, buildQuiz, choicesFor, recordResult, isKnown, formatDate,
-  pickLearnWords, learnPhases, learnRecords, hintFor,
+  pickLearnWords, learnPhases, learnRecords, hintFor, listProgress,
 } from '../logic.js';
 
 test('checkAnswer: exact, hoofdletters en leestekens', () => {
@@ -313,4 +313,16 @@ test('hintFor: lidwoord plus eerste letter', () => {
   assert.equal(hintFor('(se) laver'), '(se) l…');
   assert.equal(hintFor('très / bien'), 't…');
   assert.equal(hintFor('à'), '');
+});
+
+test('listProgress: gedeeltelijke voortgang telt mee', () => {
+  const words = [
+    { fr: 'a', nl: 'x', stats: { fn: { streak: 3 }, nf: { streak: 5 } } },
+    { fr: 'b', nl: 'y', stats: { fn: { streak: 1 } } },
+    { fr: 'c', nl: 'z' },
+    { fr: 'd', nl: '' },
+  ];
+  // (1 + 1 + 1/3) van 6 delen
+  assert.deepEqual(listProgress(words), { count: 3, known: 1, pct: 39 });
+  assert.deepEqual(listProgress([]), { count: 0, known: 0, pct: 0 });
 });

@@ -723,6 +723,20 @@ export function isKnown(word, dir) {
   return (word.stats?.[dir]?.streak ?? 0) >= KNOWN_STREAK;
 }
 
+// Voortgang van een lijst. Elke keer goed op rij telt mee (1 van de 3 is een
+// derde), zodat je ook na één ronde al ziet dat je opschiet. "known" telt de
+// woorden die in beide richtingen helemaal geleerd zijn.
+export function listProgress(words) {
+  const usable = words.filter((w) => w.fr && w.nl);
+  const part = (w, dir) => Math.min(w.stats?.[dir]?.streak ?? 0, KNOWN_STREAK) / KNOWN_STREAK;
+  const sum = usable.reduce((n, w) => n + part(w, 'fn') + part(w, 'nf'), 0);
+  return {
+    count: usable.length,
+    known: usable.filter((w) => isKnown(w, 'fn') && isKnown(w, 'nf')).length,
+    pct: usable.length ? Math.round((sum / (usable.length * 2)) * 100) : 0,
+  };
+}
+
 // Kiest per richting de woorden die het minst bekend zijn, met wat toeval.
 export function pickWords(pool, dir, count, rnd = Math.random) {
   const usable = pool.filter((w) => w.fr && w.nl);
